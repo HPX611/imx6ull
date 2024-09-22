@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"platform_device.h": "c",
+			"uaccess.h": "c"
+		}
+	}
+}

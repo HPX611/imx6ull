@@ -1,0 +1,736 @@
+register_chrdev	//注册字符设备的函数
+	-->__register_chrdev 	//实现的函数		//返回的是major
+    	-->__register_chrdev_region		//创建char_device_struct，传进的是主次设备号，和数量、名字，返回的是创建好的结构体
+    		static struct char_device_struct {
+				struct char_device_struct *next;
+                unsigned int major;
+                unsigned int baseminor;
+                int minorct;
+                char name[64];
+                struct cdev *cdev;		/* will die */
+            } *chrdevs[CHRDEV_MAJOR_HASH_SIZE];         //指针数组套链表
+			//从这个指针数组里找到一个空的，开始初始化，
+        
+        -->cdev_alloc       //创建一个cdev，并返回这个结构体指针
+            -->INIT_LIST_HEAD  //初始化 cdev 结构体中的 list 链表头。这个链表通常用于将 cdev 结构体加入到某个链表中
+            -->kobject_init     //初始化 cdev 结构体中的 kobj 成员，这是一个内核对象（kobject），用于支持内核对象的注册和管理
+
+        -->kobject_set_name     //这个就是将cdev创建的内核对象设置名字
+
+        -->cdev_add     //将cdev添加到内核里
+            -->kobj_map     //将设备号（dev_t）映射到内核对象的函数 kobj_map
+                    //根据传入的参数，创建对应数量的probe结构体，初始化好，将其插入到kobj_map指针里的probes指针数组里
+                    struct kobj_map {
+                    	struct probe {
+                    		struct probe *next;
+                    		dev_t dev;
+                    		unsigned long range;
+                    		struct module *owner;
+                    		kobj_probe_t *get;
+                    		int (*lock)(dev_t, void *);
+                    		void *data;
+                    	} *probes[255];     //probe结构体是一个用于内核对象（kobject）映射的结构体，它通常与设备驱动程序相关联
+                    	struct mutex *lock;
+                    };
+            -->kobject_get      //增加 cdev 结构体的父内核对象的引用计数。这是为了确保在 cdev 结构体被使用期间，其父内核对象不会被释放
+                -->kref_get     //原子操作，加1
+
+
+unregister_chrdev   //注销设备
+    -->__unregister_chrdev      //内部只有这一个函数
+        -->__unregister_chrdev_region   //将major、baseminor和minorct对应的设备找到，返回对应的char_device_struct结构体
+
+        -->cdev_del     //删除cdev
+            -->cdev_unmap
+                -->kobj_unmap   //找到对应的probe，将其注销
+
+            -->kobject_put
+                -->kref_put
+                    -->kref_sub     //原子操作，减1并测试其的引用是否为0，为0注销对应的内核对象
+
+        -->kfree    //释放内存
+
+
+alloc_chrdev_region     //动态分配设备号 
+    -->__register_chrdev_region     //返回一个char_device_struct，创建dev_t
+
+
+unregister_chrdev_region    //释放掉设备号
+    -->__unregister_chrdev_region       //找到对应的结构体并返回
+
+
+ioremap     //物理地址和虚拟地址的映射
+    -->__arm_ioremap
+
+iounmap     //取消对应的地址映射
+    -->__arm_iounmap
+
+register_chrdev_region      //注册字符设备的函数
+    -->__register_chrdev_region
+
+
+cdev_init       //初始化cdev
+    -->INIT_LIST_HEAD
+    -->kobject_init
+        -->kobject_init_internal        //初始化内核对象
+
+
+class_create        //创建一个类，这是一个宏
+    -->__class_create       //创建并返回一class
+        -->__class_register     //将创建的类注册
+            -->kset_register        //注册kset，添加内核集合
+            -->add_class_attrs      //添加类属性
+
+
+class_destroy       //摧毁一个类
+    -->	class_unregister
+        -->remove_class_attrs       //删除对应类的属性
+        -->kset_unregister      //注销内核集合
+            -->kobject_del      //删除内核对象的函数
+            -->kobject_put      //减少引用计数
+
+
+device_create       //创建设备并将其添加到指定的设备类
+    -->device_create_vargs      //创建设备
+        -->device_create_groups_vargs   
+            -->device_add       //添加设备，注册到内核中
+
+
+device_destroy      //注销设备
+    -->class_find_device        //找到对应的设备，并返回其的指针
+    -->put_device       //减少引用计数
+    -->device_unregister        //注销设备
+        -->device_del   //删除设备
+        -->put_device
+
+
+gpio_request        //申请一个GPIO
+gpio_free       //释放一个GPIO
+gpio_direction_input    //设置这个GPIO为输入
+gpio_direction_output   //设置这个GPIO为输出
+gpio_get_value      //获得GPIO的值
+    -->__gpio_get_value 
+        -->gpiod_get_raw_value      (gpio_to_desc())--->将GPIO转化为对应的gpio_desc结构体，内核使用结构体去控制，GPIO子系统就是将我们认为的GPIO号按照gpio_desc结构体存在内核里，在操作的时候就应该转化为对应的结构体
+
+gpio_set_value      //设置GPIO引脚的值
+    -->__gpio_set_value
+        -->gpiod_set_raw_value
+
+of_get_named_gpio       //从设备树中获取对应的GPIO编号
+
+竞争与并发
+原子操作
+typedef struct {
+	int counter;
+} atomic_t;
+
+64位机
+typedef struct { 
+ long long counter; 
+} atomic64_t;
+
+原子操作有整数的还有位操作
+
+自旋锁：自旋锁会一直访问，轻量级的可以使用，但是会浪费处理器时间，降低系统性能
+typedef struct spinlock {
+	union {
+		struct raw_spinlock rlock;
+
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+# define LOCK_PADSIZE (offsetof(struct raw_spinlock, dep_map))
+		struct {
+			u8 __padding[LOCK_PADSIZE];
+			struct lockdep_map dep_map;
+		};
+#endif
+	};
+} spinlock_t;
+
+spin_lock_init  //初始化自旋锁
+    -->spinlock_check   //确定传入的是不是一个有效的指针
+    -->raw_spin_lock_init   //初始化
+
+spin_lock   //获取自旋锁
+    -->raw_spin_lock    
+
+spin_unlock     //释放自旋锁
+    -->raw_spin_unlock
+
+整个自选锁都是在使用rlock数据来控制，自旋锁会自动禁止抢占，可以激活或禁止中断，同时保存中断的状态
+
+读写锁
+typedef struct { 
+ arch_rwlock_t raw_lock; 
+} rwlock_t;         //API在1214页
+
+顺序锁
+typedef struct { 
+ struct seqcount seqcount; 
+ spinlock_t lock; 
+} seqlock_t;        //API在1215页
+
+自选锁的注意事项：
+1、不能长时间持有，因为别的在一直访问，占用系统资源，减低系统性能
+2、临界区内不能有睡眠函数
+3、不能递归申请同一个自选锁
+4、考虑到驱动的可移植性
+
+信号量
+特点：
+1、因为信号量可以使等待资源线程进入休眠状态，因此适用于那些占用资源比较久的场合。 
+2、临界区内不能有睡眠函数因此信号量不能用于中断中，因为信号量会引起休眠，中断不能休眠。 
+3、如果共享资源的持有时间比较短，那就不适合使用信号量了，因为频繁的休眠、切换
+线程引起的开销要远大于信号量带来的那点优势
+
+struct semaphore { 
+ raw_spinlock_t lock; 
+ unsigned int count; 
+ struct list_head wait_list; 
+};      //API函数在1217页，信号量里套一个自旋锁
+
+int down_trylock(struct semaphore *sem)         //尝试获取信号量，如果能获取到信号量就获取，并且返回 0。如果不能就返回非 0，并且不会进入休眠
+{
+	unsigned long flags;
+	int count;
+
+	raw_spin_lock_irqsave(&sem->lock, flags);       //锁
+	count = sem->count - 1;
+	if (likely(count >= 0))
+		sem->count = count;
+	raw_spin_unlock_irqrestore(&sem->lock, flags);      //锁
+
+	return (count < 0);
+}
+
+互斥体
+struct mutex { 
+ /* 1: unlocked, 0: locked, negative: locked, possible waiters */ 
+ atomic_t count; 
+ spinlock_t wait_lock; 
+};      //API在1218页
+
+注意：
+1、mutex 可以导致休眠，因此不能在中断中使用 mutex，中断中只能使用自旋锁。 
+2、和信号量一样，mutex 保护的临界区可以调用引起阻塞的 API 函数。 
+3、因为一次只有一个线程可以持有 mutex，因此，必须由 mutex 的持有者释放 mutex。并且 mutex 不能递归上锁和解锁。
+
+定时器
+jiffies是系统节拍数，HZ 表示每秒的节拍数，jiffies 表示系统运行的 jiffies 节拍数，jiffies/HZ 就是系统运行时间
+
+time_after  //这个是节拍数的比较，传递的是jiffies，其是用宏实现的
+#define time_after(a,b)		\
+	(typecheck(unsigned long, a) && \
+	 typecheck(unsigned long, b) && \
+	 ((long)((b) - (a)) < 0))
+
+定时器结构体
+struct timer_list { 
+ struct list_head entry; 
+ unsigned long expires; /* 定时器超时时间，单位是节拍数 */ 
+ struct tvec_base *base; 
+ 
+ void (*function)(unsigned long); /* 定时处理函数 */ 
+ unsigned long data; /* 要传递给 function 函数的参数 */ 
+ 
+ int slack;         //定时器松弛时间，指定时器允许的延时，用于调整精确度，初始化会设置位-1
+}; 
+
+init_timer  //初始化定时器
+    -->__init_timer
+        -->init_timer_key
+            -->debug_init   //初始化定时器的调试信息
+                -->debug_timer_init     //初始化调试信息，便于在调试的时候使用
+                -->trace_timer_init     //初始化跟踪信息，注册定时器相关跟踪点，使其活动能被内核捕获
+            -->do_init_timer    //实际初始化定时器，设置初始化的状态、回调函数等
+                -->raw_cpu_read     //获取CPU的时间向量基础结构
+                -->lockdep_init_map     //初始化定时器的锁依赖映射。这是用于锁验证的机制，可以确保定时器在多核系统中正确地使用锁。
+
+add_timer    //向内核里注册定时器
+    -->BUG_ON   //确保定时器没有在定时器队列里，在则返回错误
+    -->timer_pending     //检查定时器是否挂起
+    -->mod_timer    //安排定时器在某个时间点执行
+        -->apply_slack      //调整定时器到期时间
+        -->timer_pending    //检查挂起
+        -->__mod_timer      //实际修改定时器的到期时间。这个函数会将定时器从当前位置移除（如果它已经挂起），并根据新的到期时间重新安排它
+
+del_timer   //删除定时器，取消挂起状态
+    -->debug_assert_init    //检查定时器是否已经被初始化
+    -->timer_stats_timer_clear_start_info   //清除定时器的启动信息，这是用于统计和调试的
+    -->lock_timer_base      //获取定时器所在的时间向量基础结构，并在获取过程中锁定它
+    -->detach_if_pending    //从定时器队列中移除定时器。如果定时器挂起，这个函数会将其删除，并返回 1；如果没有挂起，返回 0
+        -->detach_timer     //从定时器队列中移除定时器。这个函数会更新定时器队列的数据结构，并根据 clear_pending 参数决定是否清除定时器的挂起状态。
+        -->catchup_timer_jiffies    //同步 tvec_base 结构体中的定时器时间。这个函数会更新定时器的到期时间，以确保它们反映了当前的 jiffies 值
+    -->spin_unlock_irqrestore   //释放之前获取的锁，并恢复中断状态。
+
+del_timer_sync  //是 del_timer 函数的同步版，会等待其他处理器使用完定时器再删除，del_timer_sync 不能使用在中断上下文中
+
+mod_timer   //安排定时器在某个时间点执行
+
+
+中断
+request_irq     //注册中断服务函数
+    -->request_threaded_irq    
+        -->irq_to_desc      //将中断转换为对应的中断结构体irq_desc 
+            -->radix_tree_lookup
+        -->__setup_irq      //设置中断
+
+free_irq    //释放掉相应的中断。如果中断不是共享的，那么 free_irq 会删除中断处理函数并且禁止中断
+    -->__free_irq       //移除中断处理程序，并返回之前分配的 irqaction 结构体
+        -->unregister_handler_proc      //注销中断处理程序的 /proc 文件
+        -->synchronize_irq      //确保当前没有其他 CPU 正在使用这个中断
+        -->module_put       //减少模块引用计数
+
+enable_irq      //中断使能
+    -->irq_get_desc_buslock     //获取指定中断号的中断描述符，并在获取过程中锁定总线。这个函数会返回一个指向 irq_desc 结构体的指针，并在 flags 中保存当前的中断状态。
+    -->__enable_irq     //开启中断服务函数
+        -->irq_settings_set_noprobe     //设置中断设置，禁止对中断进行探测
+        -->irq_enable       //启用中断。这个函数会通知中断控制器允许响应中断
+        -->check_irq_resend     //检查是否需要重新发送中断
+
+这个函数的作用是确保中断被正确启用，并且启用操作是平衡的。如果中断被禁用了多少次，就需要同样启用多少次。这是中断管理中的一个重要步骤，确保中断不会被意外地遗漏或重复启用。
+用depth来看是否多次禁用
+
+disable_irq     //中断禁止
+    -->__disable_irq_nosync     //尝试禁用指定的中断。这个函数会返回一个布尔值，指示禁用操作是否成功。如果返回值不为 0（即成功禁用中断），则执行后续代码
+        -->__disable_irq    //实际禁用中断。这个函数会通知中断控制器停止响应指定的中断
+            -->irq_disable      //通过中断控制器停止响应指定的中断
+                -->irq_state_set_disabled   //更新中断描述符的状态，标记中断为已禁用
+    -->synchronize_irq      //等待直到所有处理器完成对指定中断的处理，确保在禁用中断之前，所有相关的中断处理程序都已经完成执行
+        -->__synchronize_hardirq    //等待所有硬件中断处理程序完成。这个函数会阻止当前 CPU 上的硬件中断处理程序运行，直到所有已启用的硬件中断处理程序都执行完毕
+        -->wait_event       //等待所有软件中断处理程序（如果有的话）完成，等待 desc->threads_active 计数器变为零，这意味着所有相关的软件中断处理程序都已经完成
+        
+
+中断的上下部
+上半部处理的太多，中断的浪费太多并且不能及时响应，所以有下半部去处理耗时间的处理
+Linux 内核将中断分为上半部和下半部的主要目的就是实现中断处理函数的快进快出，那些对时间敏感、执行速度快的操作可以放到中断处理函数中，也就是上半部。剩下的所有工作都可以放到下半部去执行，比如在上半部将数据拷贝到内存中，关于数据的具体处理就可以放到下半部去执行
+
+下半部的机制
+bottom half BH  软中断和tasklet替代了BH
+软中断
+struct softirq_action
+{
+	void	(*action)(struct softirq_action *);
+};
+open_softirq        //注册软中断        软中断其实只有10个指针函数数组，这是个全局变量，所有CPU都能访问到，所以注册就是给对应的指针赋值
+
+raise_softirq       //触发软中断
+    -->raise_softirq_irqoff     //实际触发中断，触发之前会禁用本地CPU的中断
+        -->__raise_softirq_irqoff       //实际触发软中断的核心函数，负责将软中断加入到软中断处理队列中，等待后续处理
+            -->or_softirq_pending(1UL << nr)    //用于将指定的软中断编号对应的位在软中断挂起标志中设置为1，将数字1左移 nr 位，这样就能在软中断挂起标志的相应位上设置一个1，表示该软中断需要被处理
+        -->in_interrupt     //检查当前是否处于中断上下文或软中断上下文
+        -->wakeup_softirqd  //唤醒 ksoftirqd 内核线程，以便它能够尽快调度和执行软中断处理程序
+
+软中断必须再编译时静态注册，用softirq_init初始化，一开始调用一次就行，该函数再start_kernel里直接调用了，后面直接注册使用
+
+tasklet
+struct tasklet_struct
+{
+	struct tasklet_struct *next;
+	unsigned long state;
+	atomic_t count;
+	void (*func)(unsigned long);        //函数
+	unsigned long data;
+};          //是利用软中断来实现的另外一种下半部机制，就是上面说的用softirq_init初始化，其内部会将TASKLET_SOFTIRQ对应的中断程序注册好，其就是tasklet实现的中断，其维护的是一个tasklet队列
+
+tasklet_init    //初始化其对应的结构体
+
+tasklet_schedule        //调度这个函数
+    -->test_and_set_bit     //检查 tasklet 是否已经被安排执行
+    -->__tasklet_schedule   //实际安排 tasklet 执行。这个函数会将 tasklet 添加到待执行的 tasklet 队列中，并唤醒 ksoftirqd 内核线程来处理这些 tasklet
+        -->raise_softirq_irqoff
+
+
+工作队列
+struct work_struct { 
+ atomic_long_t data; 
+ struct list_head entry; 
+ work_func_t func; /* 工作队列处理函数 */ 
+};      //工作队列将要推后的工作交给一个内核线程去执行，因为工作队列工作在进程上下文，因此工作队列允许睡眠或重新调度
+工作结构体组织成工作队列，workqueue_struct，工作者线程结构体里存在工作队列
+
+INIT_WORK   //初始化工作结构体
+    -->__INIT_WORK  
+        -->__init_work      //初始化工作项的基础结构。它设置了工作项的一些基本属性，如状态标志和堆栈标志。
+        -->INIT_LIST_HEAD   //初始化工作项的 entry 链表头。这使得工作项可以被添加到链表中，通常是工作队列的等待列表。
+
+schedule_work       //调度工作
+    -->queue_work
+        -->queue_work_on        //将工作添加到工作队列里
+            -->test_and_set_bit //检查工作项是否已经被添加到工作队列中
+            -->__queue_work     //实际将工作项添加到指定 CPU 的工作队列中
+
+
+阻塞IO和非阻塞IO
+阻塞IO
+struct __wait_queue_head {
+	spinlock_t		lock;
+	struct list_head	task_list;
+};
+typedef struct __wait_queue_head wait_queue_head_t;
+
+init_waitqueue_head     //初始化等待队列
+    -->__init_waitqueue_head    //初始化等待队列头
+        -->INIT_LIST_HEAD   //初始化等待队列头中的 task_list 链表头
+
+等待队列项
+struct __wait_queue {
+	unsigned int		flags;
+	void			*private;
+	wait_queue_func_t	func;
+	struct list_head	task_list;
+};
+typedef struct __wait_queue wait_queue_t;
+
+add_wait_queue      //添加等待队列项到等待队列
+    -->__add_wait_queue     //将等待队列项添加到等待队列头的 task_list 链表中
+        -->list_add     // 加到链表里
+
+remove_wait_queue   //等待队列项移除
+    -->__remove_wait_queue     
+        -->list_del
+ 
+
+wake_up     //唤醒队列
+    -->__wake_up    
+        -->__wake_up_common     //实际的唤醒操作
+
+可以设置等待的事件，事件发生就唤醒，对应的API在1298页
+
+
+非阻塞IO
+轮询
+select，poll和epoll都是用户层接收驱动的poll函数的接口去读写文件
+驱动的poll  ——  非阻塞IO使用的
+里面调用poll_wait
+void poll_wait(struct file * filp, wait_queue_head_t * wait_address, poll_table *p) 
+
+platform
+一般使用platform->driver->of_match_table 去和设备树去匹配
+
+platform_driver_register    //注册platform
+    -->__platform_driver_register
+        -->platform_drv_probe       //这三个都是设置里驱动的回调函数
+        -->platform_drv_remove
+        -->platform_drv_shutdown
+        -->driver_register      //注册驱动
+            -->bus_add_driver   //将驱动添加到总线上
+            -->driver_add_groups    //为驱动添加属性组
+
+
+platform_driver_unregister  //注销platform
+    -->driver_unregister
+        -->driver_remove_groups     //移除驱动在 sysfs 中创建的属性组
+        -->bus_remove_driver        //从总线上移除驱动
+
+MISC设备：MISC 设备驱动的主设备号都为 10，不同的设备使用不同的从设备号，MISC 设备会自动创建 cdev
+
+struct miscdevice  {
+	int minor;                              //子设备号
+	const char *name;                       //设备名字
+	const struct file_operations *fops;     //设备操作集
+	struct list_head list;
+	struct device *parent;
+	struct device *this_device;
+	const struct attribute_group **groups;
+	const char *nodename;
+	umode_t mode;
+};
+
+misc_register       //向系统注册一个MISC设备
+    -->find_first_zero_bit      //在 misc_minors 位图中寻找第一个未被使用的动态次设备号
+    -->set_bit(i, misc_minors); //在 misc_minors 位图中标记这个次设备号为已使用
+    -->list_for_each_entry      //遍历已注册的 misc 设备列表，检查是否有设备号冲突
+    -->device_create_with_groups    //建一个设备实例，并将其添加到内核的设备树中
+        -->device_create_groups_vargs       //用于创建一个设备节点
+    -->list_add     //将新注册的设备添加到 misc 设备列表的前面
+
+misc_deregister     //卸载设备驱动模块
+    -->list_del     //从列表删除
+    -->device_destroy   
+
+
+input子系统
+input 子系统的所有设备主设备号都为 13，我们在使用 input 子系统处理输入设备的时候就不需要去注册字符设备了，我们只需要向系统注册一个 input_device 即可
+
+
+input_allocate_device   //申请一个device，分配和初始化一个新的输入设备
+    -->device_initialize        //初始化设备
+        devices_kset        //全局变量，通常指向系统中所有设备对象的集合
+            kernel_init 
+                --> kernel_init_freeable 
+                    --> do_basic_setup 
+                        --> driver_init 
+                            --> devices_init
+                                -->kset_create_and_add  //全局变量由这个函数创建，这个在一开始的kernel_init就调用了
+
+        -->kobject_init     //初始化设备的内核对象
+
+input_free_device       //释放input设备，注销设备前先将其控制的资源先释放
+    -->input_put_device     //减少设备引用计数。当引用计数达到零时，设备将被释放
+
+input_register_device       //向 Linux 内核注册 input_dev
+    -->devres_alloc     //设备管理资源，分配一个input_devres结构用于资源管理
+    -->input_cleanse_bitmasks   //清理设备事件位掩码，确保未设置的位都是清空的
+    -->input_estimate_events_per_packet //估计每个数据包中的事件数量
+    -->device_add       //将设备添加到内核设备列表中
+    -->input_wakeup_procfs_readers      //唤醒可能在等待输入设备注册的procfs读取器
+
+input_unregister_device     //注销 input 驱动，注销设备前先将其控制的资源先释放
+    -->__input_unregister_device    //实际的设备注销操作。这个函数会从内核的输入设备列表中移除设备，并执行其他必要的清理工作，包括断开设备连接、清理设备列表、同步删除设备定时器、从设备列表中移除设备，以及删除设备
+        -->input_disconnect_device      //断开设备的连接。这通常意味着停止设备的数据传输和处理
+        -->	list_for_each_entry_safe(handle, next, &dev->h_list, d_node)
+		        handle->handler->disconnect(handle);    //使用这个来清理设备列表，对于每个句柄，调用其处理程序的disconnect函数来断开连接
+        -->	del_timer_sync      //同步地删除设备的定时器
+        -->list_del_init        //从输入设备列表中删除设备节点，并重新初始化该节点，以便它可以被重新使用
+        -->input_wakeup_procfs_readers
+        -->device_del
+
+input_event     //上报指定的事件以及对应的值，将输入事件（如按键按下、释放或鼠标移动）传递给内核的输入子系统
+    -->is_event_supported       //检查设备是否支持指定的事件类型
+    -->input_handle_event       //将事件传递给所有注册的处理程序，并可能将事件传递给用户空间
+        -->input_get_disposition    //获取事件的处理策略。这个函数根据设备的配置和事件类型来决定如何处理事件，下面就是将时间分成3类，将事件传递给设备驱动程序、输入处理程序，或者是否需要立即“刷新”事件
+        -->第一类  下面有一个判断事件是否应该传递给设备，并且设备是否有事件处理函数，条件满足，调用设备的事件处理函数（在input_dev *dev里面 event）
+        -->第二类  事件处理策略指示需要将事件传递给输入处理程序（INPUT_PASS_TO_HANDLERS），函数会将事件添加到值数组中，以便稍后处理
+        -->第三类  事件处理策略包含 INPUT_FLUSH，函数会立即调用 input_pass_values 将所有累积的事件传递给输入处理程序，并清空值数组。
+            -->input_pass_values    //传递事件，并重置计数器，将输入事件数组传递给设备的所有注册处理程序，并且处理一些特定的事件，如自动重复按键
+                -->rcu_dereference      //获取当前“抓取”设备的输入处理程序。如果设备被某个处理程序“抓取”，则所有事件只会发送给这个处理程序。
+                    在其中如果有抓取处理程序，直接将事件发送给它，如果没有抓取处理程序，遍历设备的所有注册处理程序
+                -->input_to_handler     //将事件传递给处理程序，并获取处理后剩余未处理事件的数量
+
+
+input_sync      //上报一个同步事件，上报结束
+    -->input_event      //还是上报事件，但是上报的是同步事件
+
+IIC
+I2C 适配器驱动的主要工作就是初始化 i2c_adapter 结构体变量，然后设置 i2c_algorithm 中的 master_xfer 函数。完成以后通过 i2c_add_numbered_adapter或 i2c_add_adapter 这两个函数向系统注册设置好的 i2c_adapter,如果要删除 I2C 适配器的话使用 i2c_del_adapter 函数即可
+总线、设备和驱动模型    就剩设备和驱动  i2c_client 就是描述设备信息的，i2c_driver 描述驱动内容，但是现在都是使用设备树，所以一般我们是需要写驱动
+i2c_driver 类似 platform_driver
+
+i2c_register_driver     //注册i2c_driver
+    -->driver_register      //将驱动程序注册到内核的驱动模型中
+    -->INIT_LIST_HEAD(&driver->clients);    //初始化一个空的链表，用于存储与此驱动程序关联的 I2C 设备
+    -->	i2c_for_each_dev(driver, __process_new_driver); //遍历所有已存在的 I2C 设备，调用 __process_new_driver 函数来处理与此驱动程序匹配的设备
+        -->bus_for_each_dev     //遍历 I2C 总线上的所有设备，并调用传入的回调函数__process_new_driver
+
+        -->__process_new_driver
+            -->i2c_do_add_adapter   //将 I2C 适配器添加到 I2C 驱动程序，并可能执行一些初始化操作，通常在 I2C 驱动程序注册过程中被调用，以确保适配器上的所有支持的设备都被检测并实例化
+                -->i2c_detect   //检测适配器上的所有设备，并为每个支持的设备创建一个实例，尝试找到可以被当前驱动程序支持的设备
+
+i2c_del_driver      //注销
+    -->i2c_for_each_dev(driver, __process_removed_driver);  //遍历所有由这个驱动程序管理的 I2C 设备。对于每个设备，调用 __process_removed_driver 回调函数来处理设备的移除
+    -->driver_unregister
+
+i2c_transfer        //i2c_transfer 函数最终会调用 I2C 适配器中 i2c_algorithm 里面的 master_xfer 函数
+    -->__i2c_transfer       //执行实际的 I2C 传输。这个函数是 master_xfer 函数的封装
+
+SPI
+和I2C基本一样，都有对应的控制器，我们只是注重设备驱动的编写
+struct spi_driver {
+	const struct spi_device_id *id_table;
+	int			(*probe)(struct spi_device *spi);
+	int			(*remove)(struct spi_device *spi);
+	void			(*shutdown)(struct spi_device *spi);
+	struct device_driver	driver;
+};      //spi_driver 设备驱动的结构体
+
+spi_register_driver     //注册  和platform一样
+    -->spi_drv_probe
+    -->spi_drv_remove
+    -->spi_drv_shutdown
+    -->driver_register  
+
+spi_unregister_driver   //注销  和platform一样
+    -->driver_unregister
+
+spi_message_init        //初始化spi_message，消息队列
+    -->INIT_LIST_HEAD   
+
+消息的结构体
+struct spi_transfer {
+	/* it's ok if tx_buf == rx_buf (right?)
+	 * for MicroWire, one buffer must be null
+	 * buffers must work with dma_*map_single() calls, unless
+	 *   spi_message.is_dma_mapped reports a pre-existing mapping
+	 */
+	const void	*tx_buf;
+	void		*rx_buf;
+	unsigned	len;
+
+	dma_addr_t	tx_dma;
+	dma_addr_t	rx_dma;
+	struct sg_table tx_sg;
+	struct sg_table rx_sg;
+
+	unsigned	cs_change:1;
+	unsigned	tx_nbits:3;
+	unsigned	rx_nbits:3;
+#define	SPI_NBITS_SINGLE	0x01 /* 1bit transfer */
+#define	SPI_NBITS_DUAL		0x02 /* 2bits transfer */
+#define	SPI_NBITS_QUAD		0x04 /* 4bits transfer */
+	u8		bits_per_word;
+	u16		delay_usecs;
+	u32		speed_hz;
+
+	struct list_head transfer_list;
+};
+
+spi_message_add_tail    //将 spi_transfer 添加到 spi_message 队列
+    -->list_add_tail
+        -->__list_add
+
+spi_sync        //数据传输，同步传输
+    -->__spi_sync
+        //两种传输方式  队列传输或非队列传输
+        //队列传输
+        -->__spi_queued_transfer        //将消息放入传输队列，前后还有相应的锁的获取和释放，提交跟踪信息
+        -->__spi_pump_messages  //持队列传输，那么调用__spi_pump_messages函数来处理消息队列
+        //非队列
+        -->spi_async_locked         //同步传输消息
+
+        -->wait_for_completion  //等待completion变量done被唤醒，这通常发生在传输完成时
+
+
+块设备
+struct block_device {
+	dev_t			bd_dev;  /* not a kdev_t - it's a search key */
+	int			bd_openers;
+	struct inode *		bd_inode;	/* will die */
+	struct super_block *	bd_super;
+	struct mutex		bd_mutex;	/* open/close mutex */
+	struct list_head	bd_inodes;
+	void *			bd_claiming;
+	void *			bd_holder;
+	int			bd_holders;
+	bool			bd_write_holder;
+#ifdef CONFIG_SYSFS
+	struct list_head	bd_holder_disks;
+#endif
+	struct block_device *	bd_contains;
+	unsigned		bd_block_size;
+	struct hd_struct *	bd_part;
+	/* number of times partitions within this device have been opened. */
+	unsigned		bd_part_count;
+	int			bd_invalidated;
+	struct gendisk *	bd_disk;
+	struct request_queue *  bd_queue;
+	struct list_head	bd_list;
+	/*
+	 * Private data.  You must have bd_claim'ed the block_device
+	 * to use this.  NOTE:  bd_claim allows an owner to claim
+	 * the same device multiple times, the owner must take special
+	 * care to not mess up bd_private for that case.
+	 */
+	unsigned long		bd_private;
+
+	/* The counter of freeze processes */
+	int			bd_fsfreeze_count;
+	/* Mutex for freeze */
+	struct mutex		bd_fsfreeze_mutex;
+};  //块设备描述结构体
+
+block_device    //块设备注册函数
+//分配主设备号，使用kmalloc分配内存来存储新的blk_major_name结构体，该结构体用于存储主设备号和设备名称，将传入的设备名称复制到新分配的blk_major_name结构体中，将主设备号赋值给结构体的major成员，根据主设备号计算索引，然后在相应的链表中插入新的blk_major_name结构体
+
+unregister_blkdev   //注销
+//就是按照传入的主设备号和名字将之前注册的 blk_major_name 结构体删除
+
+gendisk 结构体，描述一个磁盘设备 很重要，基本就是在初始化这个去控制这个块设备，里面有设备号，次设备数目和起始位置，还有分区表，fops操作集合，请求队列（块设备没有读写函数，就是请求队列）
+
+alloc_disk      //申请一个 gendisk，传入的参数只有次设备的数量，也就是分区数
+    -->alloc_disk_node
+        -->init_part_stats  //初始化磁盘分区统计信息
+        -->disk_expand_part_tbl     //扩展分区表
+        -->seqcount_init    //初始化分区的扇区数序列计数器
+        -->hd_ref_init      //初始化分区的引用计数
+        -->rand_initialize_disk     //使用随机数初始化磁盘
+        -->device_initialize        //初始化磁盘的设备结构\
+
+del_gendisk     //删除 gendisk 
+    -->disk_del_events  //删除与磁盘相关的事件
+    
+    //使用迭代器来让整个分区删除
+    -->disk_part_iter_init      //初始化分区迭代器 piter，包括空分区，并以相反的顺序迭代
+    -->disk_part_iter_next      //使用迭代器遍历所有分区，直到没有更多分区
+    -->invalidate_partition     //使指定分区无效
+    -->delete_partition     //删除指定分区
+    -->disk_part_iter_exit  //退出分区迭代器
+
+    //下来就是让整个磁盘无效并将容量设置为0
+    invalidate_partition(disk, 0);
+	set_capacity(disk, 0);
+	disk->flags &= ~GENHD_FL_UP;
+
+    -->sysfs_remove_link    //从 sysfs 文件系统中移除与磁盘相关的 bdi 链接
+    -->blk_unregister_queue     //注销磁盘的请求队列
+    -->blk_unregister_region        //注销磁盘的设备号区域
+    -->device_del   //从内核中删除设备
+
+add_disk    //将申请到的gendisk 添加到内核中
+    -->blk_alloc_devt   //分配设备号
+    -->disk_alloc_events    //为磁盘分配事件
+    -->bdi_register_dev     //注册后备设备信息
+    -->blk_register_region  //注册设备号区域
+    -->register_disk    //注册磁盘
+    -->blk_register_queue   //注册磁盘的请求队列
+    -->sysfs_create_link    //在 sysfs 文件系统中创建一个指向后备设备信息的链接
+    -->disk_add_events      //为磁盘添加事件
+
+blk_init_queue      //初始化一个 request_queue
+    -->blk_init_queue_node
+        -->blk_alloc_queue_node     //在指定的 NUMA 节点上分配内存，并初始化一个未初始化的请求队列
+        -->blk_init_allocated_queue     //初始化已分配的请求队列，设置请求处理函数和自旋锁
+
+blk_cleanup_queue   //删除请求队列
+    -->blk_set_queue_dying  //请求队列标记为正在消亡（DYING），这意味着不再允许新的请求或合并操作
+    -->queue_flag_set   //设置标志
+    -->blk_mq_freeze_queue      //冻结多队列请求队列，阻止新的请求被添加
+    -->__blk_drain_queue        //清空请求队列中的所有请求
+    -->del_timer_sync   //同步地删除与请求队列关联的定时器
+    -->blk_sync_queue   //同步等待请求队列中的所有 I/O 操作完成
+    -->blk_mq_free_queue    //释放多队列请求队列
+    -->bdi_destroy  //销毁与请求队列关联的后备设备信息
+        -->device_unregister
+
+blk_queue_make_request      //为 blk_alloc_queue 函数申请到的请求队列绑定一个“制造请求”函数
+
+一般 blk_alloc_queue 和 blk_queue_make_request 是搭配在一起使用的，用于那么非机械的存储设备、无需 I/O 调度器，比如 EMMC、SD 卡等。blk_init_queue 函数会给请求队列分配一个 I/O 调度器，用于机械存储设备，比如机械硬盘等
+
+blk_peek_request        //从request_queue中依次获取每个request，函数返回队列中排在最前面的请求，但不将其从队列中移除
+    -->blk_pm_peek_request  //检查请求是否可以被处理
+    -->trace_block_rq_issue     //记录跟踪信息，表示请求即将被处理
+
+blk_start_request       //开始处理这个请求，负责启动请求的处理过程，但并不直接处理请求，实际的请求处理是由请求处理函数和设备驱动程序完成的
+    -->blk_dequeue_request      //将请求从请求队列中移除
+    -->blk_rq_bytes //返回请求中的数据字节数
+    -->unlikely(blk_bidi_rq(req))   //使用 unlikely 宏来检查请求是否是双向请求（bidi request），即同时包含读和写的请求。blk_bidi_rq(req) 函数返回一个非零值，如果请求是双向的
+    -->blk_add_timer    //为请求添加一个超时处理程序。如果请求在指定的时间内没有完成，超时处理程序将被触发
+
+blk_fetch_request       //上两个的封装
+struct request *blk_fetch_request(struct request_queue *q)
+{
+	struct request *rq;
+
+	rq = blk_peek_request(q);
+	if (rq)
+		blk_start_request(rq);
+	return rq;
+}
+
+每个 request 里面会有多个 bio，bio 保存着最终要读写的数据、地址等信息
+在bio里，只需要注意bvec_iter（物理地址信息），bio_vec（内存信息）
+struct bvec_iter {
+	sector_t		bi_sector;	/* device address in 512 byte
+						   sectors */
+	unsigned int		bi_size;	/* residual I/O count */
+
+	unsigned int		bi_idx;		/* current index into bvl_vec */
+
+	unsigned int            bi_bvec_done;	/* number of bytes completed in
+						   current bvec */
+};
+
+struct bio_vec {
+	struct page	*bv_page;
+	unsigned int	bv_len;
+	unsigned int	bv_offset;
+};

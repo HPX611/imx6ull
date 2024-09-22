@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"timer.h": "c",
+			"stdlib.h": "c",
+			"poll.h": "c",
+			"string.h": "c",
+			"select.h": "c",
+			"ioctl.h": "c"
+		}
+	}
+}

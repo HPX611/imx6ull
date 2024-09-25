@@ -222,3 +222,111 @@ CommandLinkButton 控件和 RadioButton 相似，都是用于在互斥选项中�
 
 ## **输入窗口部件**
 
+### QComboBox
+
+QComboBox 类提供了 Qt 下拉组合框的组件，QComboBox 我们常会在一些需要下拉列表选择的项目中用到，就是点击后出现下拉框，框内是添加的选项，可以进行选择
+
+### QFontComboBox
+
+QFontComboBox 类提供了下拉选择字体系列的组合框小部件，是一个允许用户选择字体系列 的组合框。组合框中填充了按字母顺序排列的字体家族名称列表，QFontComboBox 继承 QComboBox。
+
+### QLineEdit
+
+QLineEdit 小部件是一个单行文本编辑器。行编辑允许用户使用一组有用的编辑函数输入和 编辑一行纯文本。包括撤消和重做、剪切和粘贴以及拖放。通过更改行编辑的 echoMode()，它 还可以用作“只写”字段，用于输入如密码等
+
+### QTextEdit
+
+QTextEdit 类提供了一个查看器/编辑器小部件
+
+### QPlainTextEdit
+
+QPlainTextEdit 类提供了一个用于编辑和显示纯文本的小部件，常用于显示多行文本或简单 文本
+
+QPlainTextEdit 可以理解为 QTextEdit 的低配 版。QPlainTextEdit 支持纯文本显示，QTextEdit 支持富文本（支持多种格式，比如插入图片， 链接等）显示。就是多一个样式。QPlainTextEdit 显示的效率比 QTextEdit 高，如果需要显示大 量文字，尤其是需要滚动条来回滚动的时候，QPlainTextEdit 要好很多
+
+### QSpinBox
+
+QSpinBox 类提供了一个微调框小部件
+
+### QDoubleSpinBox
+
+QDoubleSpinBox 类提供了一个用于处理浮点值微调框小部件。与 QSpinBox 作用基本一样， 与 QSpinBox 不同的是，QDoubleSpinBox 类处理的是浮点值数据
+
+### QTimeEdit
+
+QTimeEdit 类提供一个基于 QDateTimeEdit 类编辑时间的小部件
+
+### QDateEdit
+
+QDateEdit 类提供一个基于 QDateTimeEdit 类编辑时间的小部件
+
+### QDateTimeEdit
+
+从名字可知 QDateTimeEdit 类提供了一个用于编辑日期和时间的小部件。QDateTimeEdit 允许用户使用键盘或箭头键编辑日期，以增加或减少日期和时间值。箭头键可用于在 QDateTimeEdit 框中从一个区域移动到另一个区域。实际上是 QDateTimeEdit 和 QDateEdit 的组 合。 
+
+### QDial
+
+QDial 类提供了一个圆形范围控制(如速度计或电位器)。QDial 用于当用户需要在可编程定 义的范围内控制一个值，并且该范围要么是环绕的(例如，从 0 到 359 度测量的角度)，要么对 话框布局需要一个正方形小部件。由于 QDial 从 QAbstractSlider 继承，因此拨号的行为与滑块 类似。 当 wrapping（）为 false（默认设置）时，滑块和刻度盘之间没有真正的区别。 它们共 享相同的信号，插槽和成员功能。 您使用哪一个取决于您的用户期望和应用程序类型
+
+### QScrollBar
+
+QScrollBar 继承 QAbstractSlider。QScrollBar 小部件提供垂直或水平滚动条，允许用户访问 比用于显示文档的小部件大的文档部分。它提供了用户在文档中的当前位置和可见文档数量的 可视化指示。滚动条通常配有其他控件，可以实现更精确的导航(这里指浏览到精确的位置)。
+
+### QSlider
+
+QSlider 继承 QAbstractSlider。QScrollBar 类提供垂直或水平滑动条小部件，滑动条是用于 控制有界值的典型小部件。它允许用户沿着水平或垂直凹槽移动滑块手柄，并将手柄的位置转 换为合法范围内的整数值。
+
+### QKeySequenceEdit
+
+QKeySequenceEdit 继承 QWidget。这个小部件允许用户选择 QKeySequence, QKeySequence 通常用作快捷方式。当小部件接收到焦点并在用户释放最后一个键后一秒结束时，将启动记录， 通常用作记录快捷键
+
+## 显示窗口部件
+
+### QLabel
+
+QLabel 提供了一种用于文本或图像显示的小部件
+
+### QCalendarWidget
+
+QCalendarWidget 继承 QWidget。QCalendarWidget 类提供了一个基于月的日历小部件，允 许用户选择日期。CalendarWidget 小部件是用当前月份和年份初始化的，QCalendarWidget 还提 供了几个公共插槽来更改显示的年份和月份。 
+
+### QLCDNumber
+
+QLCDNumber 继承 QFrame。QLCDNumber 小部件显示一个类似于 lcd 的数字。 QLCDNumber 小部件可以显示任意大小的数字。它可以显示十进制、十六进制、八进制或二进 制数字。使用 display()插槽很容易连接到数据源，该插槽被重载以接受五种参数类型中的任何 一种。
+
+### QProgressBar
+
+QProgressBar 继承 QWidget。QProgressBar 小部件提供了一个水平或垂直的进度条。进度 条用于向用户显示操作的进度，并向他们确认应用程序仍在运行
+
+### QFrame
+
+QFrame 继承 QWidget。QFrame 类是有框架的窗口部件的基类，它绘制框架并且调用一个 虚函drawContents()来填充这个框架。这个函数是被子类重新实现的。
+
+这里至少还有两个有用 的函数：drawFrame()和frameChanged()。  
+
+QPopupMenu 使用这个来把菜单“升高”，高于周围屏幕。QProgressBar 有“凹陷”的外观。 QLabel 有平坦的外观。这些有框架的窗口部件可以被改变。 
+
+QFrame::Shape 这个枚举类型定义了 QFrame 的框架所使用的外形。当前定义的效果有：
+
+* NoFrame - QFrame 不画任何东西
+* Box - QFrame 在它的内容周围画一个框 
+* Panel - QFrame 画一个平板使内容看起来凸起或者凹陷 
+* WinPanel - 像 Panel，但 QFrame 绘制三维效果的方式和 Microsoft Windows 95（及其它） 的一样
+* ToolBarPanel - QFrame 调用 QStyle::drawToolBarPanel() 
+* MenuBarPanel - QFrame 调用 QStyle::drawMenuBarPanel() 
+* HLine - QFrame 绘制一个水平线，但没有框任何东西（作为分隔是有用的）
+* VLine - QFrame 绘制一个竖直线，但没有框任何东西（作为分隔是有用的）
+* StyledPanel - QFrame 调用 QStyle::drawPanel()
+* PopupPanel - QFrame 调用 QStyle::drawPopupPanel() 
+
+阴影风格有：
+
+* Plain 使用调色板的前景颜色绘制（没有任何三维效果）
+* Raised 使用当前颜色组的亮和暗颜色绘制三维的凸起线。
+* Sunken 使用当前颜色组的亮和暗颜色绘制三维的凹陷线。
+
+## 显示窗口部件之浏览器
+
+#### QTextBrowser
+
+QTextBrowser 继承 QTextEdit，QTextBrowser 类提供了一个具有超文本导航的文本浏览器。 该类扩展了 QTextEdit(在只读模式下)，添加了一些导航功能，以便用户可以跟踪超文本文档中 的链接。
